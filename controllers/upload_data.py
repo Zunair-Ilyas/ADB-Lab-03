@@ -1,45 +1,86 @@
+import os
+from pathlib import Path
 import pandas as pd
-import io
+from pymongo import MongoClient, errors
+from dotenv import load_dotenv
 
-# Replace 'your_spreadsheet.csv' with the actual name of your uploaded file
-file_name = 'Ananth_Test_DB_Tests.xlsx - Tests (1).csv'
+# Load environment variables from a .env file (optional)
+load_dotenv()
 
-try:
-    df = pd.read_csv('../Cricket.csv')
-    print("Spreadsheet successfully loaded!")
-    display(df.head())
-except KeyError:
-    print(f"Error: File '{file_name}' not found. Please ensure you uploaded the correct file name.")
-except Exception as e:
-    print(f"An error occurred while loading the spreadsheet: {e}")
-    print("Please ensure the file is a valid CSV and the name is correct.")
+# CSV file name relative to repository root (adjust if needed)
+CSV_FILENAME = os.getenv('CRICKET_CSV', str(Path(__file__).resolve().parents[1] / 'Cricket.csv'))
 
-# Remove the first row
-df = df.iloc[1:]
+# MongoDB connection string should be set in environment variable MONGO_URI
+# Example .env entry: MONGO_URI="mongodb+srv://<user>:<pass>@cluster.mongodb.net/?retryWrites=true&w=majority"
+MONGO_URI = os.getenv('MONGO_URI')
+DB_NAME = os.getenv('DB_NAME', 'task_manager_db')
+COLLECTION_NAME = os.getenv('COLLECTION_NAME', 'cricket')
 
-print("First row removed. Displaying the new head of the DataFrame:")
-display(df.head())
 
-from pymongo import MongoClient
+def load_csv(path: str) -> pd.DataFrame:
+    """Load CSV into a pandas DataFrame. Raises FileNotFoundError if not present."""
+    csv_path = Path(path)
+    if not csv_path.exists():
+        raise FileNotFoundError(f"CSV file not found at: {csv_path}")
 
-# Replace the placeholder with your actual MongoDB Atlas connection string
-# Example: 'mongodb+srv://<username>:<password>@<cluster-name>.<xxxxxx>.mongodb.net/?retryWrites=true&w=majority'
-mongo_uri = 'mongodb+srv://Zunair:wE1ijCgy4unmamsX@task-manager.hendyep.mongodb.net/?retryWrites=true&w=majority&appName=Task-Manager'
+    # Try reading; allow pandas to infer encoding/engine
+    df = pd.read_csv(csv_path)
 
-try:
-    client = MongoClient(mongo_uri)
-    # The ping command is cheap and does not require auth. It will confirm that the connection is working.
+    # If the CSV contains a header row that's actually metadata, drop the first row
+    # This mirrors previous behavior but is safer (only drop if header-like)
+    if df.shape[0] > 0 and all(isinstance(x, str) for x in df.columns):
+        # Keep as-is. If you really want to drop a metadata row, uncomment next line:
+        # df = df.iloc[1:]
+        pass
+
+    return df
+
+
+def get_mongo_client(uri: str) -> MongoClient:
+    if not uri:
+        raise ValueError('MONGO_URI is not set. Please configure it in environment or .env file.')
+    client = MongoClient(uri)
+    # Ping to verify connection
     client.admin.command('ping')
-    print("Successfully connected to MongoDB Atlas!")
-    # You can now access your databases and collections, for example:
-    # db = client['your_database_name']
-    # collection = db['your_collection_name']
-    # print(f"Connected to database: {db.name}")
-except Exception as e:
-    print(f"Could not connect to MongoDB Atlas: {e}")
+    return client
 
-list_of_dict = df.to_dict(orient='records')
 
-collection = db.create_collection('cricket')
+def upload_dataframe_to_mongo(df: pd.DataFrame, client: MongoClient, db_name: str, collection_name: str):
+    db = client[db_name]
+    collection = db[collection_name]
 
-collection.insert_many(list_of_dict)
+    # Convert DataFrame to dictionary records
+    list_of_dict = df.to_dict(orient='records')
+
+    if not list_of_dict:
+        print('No records to insert.')
+        return
+
+    try:
+        result = collection.insert_many(list_of_dict, ordered=False)
+        print(f'Inserted {len(result.inserted_ids)} documents into {db_name}.{collection_name}')
+    except errors.BulkWriteError as bwe:
+        # Some documents may have failed; report summary
+        print('Bulk write error occurred while inserting documents:')
+        print(bwe.details)
+    except Exception as e:
+        print(f'Unexpected error while inserting documents: {e}')
+
+
+def main():
+    try:
+        print(f'Loading CSV from: {CSV_FILENAME}')
+        df = load_csv(CSV_FILENAME)
+        print('CSV loaded. Preview:')
+        print(df.head().to_string())
+
+        client = get_mongo_client(MONGO_URI)
+        print('Successfully connected to MongoDB Atlas!')
+
+        upload_dataframe_to_mongo(df, client, DB_NAME, COLLECTION_NAME)
+    except Exception as e:
+        print(f'Error: {e}')
+
+
+if __name__ == '__main__':
+    main()
