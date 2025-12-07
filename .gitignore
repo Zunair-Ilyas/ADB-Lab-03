@@ -1,0 +1,87 @@
+# Node.js
+node_modules/
+npm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Runtime files
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
+.venv/
+pip-wheel-metadata/
+.pytest_cache/
+
+# Virtual environments
+venv/
+ENV/
+.envs/
+
+# dotenv
+.env
+.env.*
+
+# Database files
+*.sqlite3
+*.db
+
+# Editors and IDEs
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+coverage/
+*.coverage
+.cache
+*.log
+
+# Ignore local JetBrains and other IDE folders
+/.idea/
+
+# Ignore node-waf config
+.lock-wscript
+
+# Optional npm cache
+.npm
+
+# Mac
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Ignore build directories
+dist/
+build/
+
+# Ignore generated credentials or secrets
+secrets.json
+credentials.json
+
+# Keep project CSVs and source files tracked unless you specifically want them ignored
+# (Do NOT ignore Cricket.csv unless you intentionally want to exclude it)
+
